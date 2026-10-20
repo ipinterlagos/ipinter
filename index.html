@@ -351,12 +351,6 @@
       margin-bottom: 32px;
     }
 
-    .login-logo img {
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
     .login-logo h1 {
       font-size: 2rem;
       color: var(--primary-dark);
@@ -1916,7 +1910,7 @@
   <div id="tela-login">
     <div class="login-box">
       <div class="login-logo">
-        <img src="logo_ipb_oficial.png" style="width: 120px; height: 120px; object-fit: contain; margin-bottom: 16px;">
+        <img id="login-logo-img" src="" alt="Logotipo da igreja" style="display:none; width:120px; height:120px; object-fit:contain; margin:0 auto 16px;">
         <h1>Igreja Presbiteriana<br>em Interlagos</h1>
         <p>Sistema de Gestão Eclesiástica</p>
       </div>
@@ -1986,6 +1980,28 @@
 
     // Cliente principal (mantém sessão do usuário logado)
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Carrega a logo configurada no Supabase também na tela de login.
+    async function carregarLogoLogin() {
+      const logo = document.getElementById('login-logo-img');
+      if (!logo) return;
+      try {
+        const { data, error } = await supabase
+          .from('configuracoes')
+          .select('logo_url')
+          .eq('id', 1)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data?.logo_url) return;
+        logo.onload = () => { logo.style.display = 'block'; };
+        logo.onerror = () => { logo.style.display = 'none'; };
+        logo.src = data.logo_url;
+        if (logo.complete && logo.naturalWidth > 0) logo.style.display = 'block';
+      } catch (e) {
+        console.error('Erro ao carregar a logo da tela de login:', e);
+      }
+    }
+
 
     /* =====================================================================
        MIGRAÇÃO SUPABASE — execute no SQL Editor do projeto se necessário
@@ -2131,6 +2147,8 @@ const SVG_TRASH = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" s
 const SVG_EDIT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
 const SVG_WPP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21"/><path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1"/></svg>';
     let perfilAtual = null;
+    let emailUsuarioAtual = null;
+    const ehLiderCelula = () => normalizarTexto(perfilAtual) === 'lider';
 
        // ==================== LOGIN (Supabase Auth) ====================
     async function login(email, senha) {
@@ -2160,6 +2178,7 @@ const SVG_WPP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
       if (perfError || !perfData) throw new Error('Perfil de acesso não encontrado. Contacte o administrador.');
 
       perfilAtual = perfData.perfil;
+      emailUsuarioAtual = (authData.user.email || email || '').trim().toLowerCase();
       localStorage.setItem('perfil', perfilAtual);
       localStorage.setItem('pode_editar', perfData.pode_editar !== false ? '1' : '0');
 
@@ -2224,6 +2243,7 @@ const SVG_WPP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
       const btnLogin = document.getElementById('btn-login');
       const emailEl = document.getElementById('login-email');
       const senhaEl = document.getElementById('login-senha');
+      carregarLogoLogin();
 
       if (btnLogin) btnLogin.onclick = tentarLogin;
       if (emailEl && senhaEl) {
@@ -2251,11 +2271,14 @@ const SVG_WPP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
             .single();
           if (perfData) {
             perfilAtual = perfData.perfil;
+            emailUsuarioAtual = (session.user.email || '').trim().toLowerCase();
             try { localStorage.setItem('perfil', perfilAtual); } catch(e) {}
             try { localStorage.setItem('pode_editar', perfData.pode_editar !== false ? '1' : '0'); } catch(e) {}
             await iniciar();
           }
+          emailUsuarioAtual = null;
         } else {
+          emailUsuarioAtual = null;
           // Sem sessão: limpa qualquer cache antigo
           try { localStorage.removeItem('perfil'); } catch(e) {}
           try { localStorage.removeItem('pode_editar'); } catch(e) {}
@@ -2337,6 +2360,7 @@ const perfilModulos = {
       localStorage.removeItem('pode_editar');
       localStorage.removeItem('lembrar_email');
       perfilAtual = null;
+      emailUsuarioAtual = null;
       // Oculta o sistema e exibe o login
       const sistema = document.getElementById('sistema');
       const login = document.getElementById('tela-login');
@@ -3805,25 +3829,24 @@ function gruposRenderizar(c) {
     document.head.appendChild(style);
   }
 
+  if (ehLiderCelula()) _grpSubTab = 'celulas';
   c.innerHTML = `
 <div class="premium-dashboard">
   <div class="dash-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap: wrap; gap: 15px;">
     <div>
         <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Comunhão e Organização</p>
-        <h2 style="margin: 0; color: var(--primary-dark);">Ministérios e Células</h2>
+        <h2 style="margin: 0; color: var(--primary-dark);">${ehLiderCelula() ? 'Minha Célula' : 'Ministérios e Células'}</h2>
     </div>
-    <div style="display:flex; gap:10px">
-      <button class="btn-primary" onclick="window._grp.abrirModal()">+ Novo Registro</button>
-    </div>
+    ${ehLiderCelula() ? '' : `<div style="display:flex; gap:10px"><button class="btn-primary" onclick="window._grp.abrirModal()">+ Novo Registro</button></div>`}
   </div>
 
-  <!-- Menu de Abas Principais (Segmented Style) -->
+  ${ehLiderCelula() ? '' : `<!-- Menu de Abas Principais -->
   <div style="margin-bottom: 24px;">
     <div class="grp-tabs" style="background: #f1f5f9; padding: 4px; border-radius: 12px; display: inline-flex; border: none !important;">
       <div class="grp-tab-btn ${_grpSubTab === 'ministerios' ? 'ativa' : ''}" data-aba="ministerios" onclick="window._grp.mudarAba('ministerios')" style="padding: 8px 24px !important; border: none !important; border-radius: 8px !important; cursor: pointer; font-weight: 600;">Ministérios</div>
       <div class="grp-tab-btn ${_grpSubTab === 'celulas' ? 'ativa' : ''}" data-aba="celulas" onclick="window._grp.mudarAba('celulas')" style="padding: 8px 24px !important; border: none !important; border-radius: 8px !important; cursor: pointer; font-weight: 600;">Células</div>
     </div>
-  </div>
+  </div>`}
 
   <!-- Seletor de Itens (Botões) -->
   <div id="lista-grupos" class="celula-grid"></div>
@@ -3854,15 +3877,24 @@ function gruposRenderizar(c) {
 }
 
 async function gruposCarregar() {
-  const { data, error } = await supabase.from('grupos').select('*').order('nome');
-  if (error) return;
-  _grpCache = data;
-  
+  const ehLider = ehLiderCelula();
+  if (ehLider) _grpSubTab = 'celulas';
+  const email = (emailUsuarioAtual || '').trim().toLowerCase();
   const l = document.getElementById('lista-grupos'); if (!l) return;
-  const filtrados = data.filter(g => g.tipo === _grpSubTab);
+  const consulta = supabase.from('grupos').select('*');
+  const { data, error } = await (ehLider
+    ? consulta.eq('tipo', 'celulas').eq('lider_email', email)
+    : consulta).order('nome');
+  if (error) {
+    _grpCache = [];
+    l.innerHTML = `<div class="vazio" style="padding:20px;width:100%;color:#b91c1c">Não foi possível carregar ${ehLider ? 'sua célula' : 'os registros'}: ${error.message}${ehLider && /lider_email|column/i.test(error.message) ? '<br><br>O banco ainda precisa da coluna de e-mail do líder. No Supabase, execute uma vez: <code>ALTER TABLE public.grupos ADD COLUMN IF NOT EXISTS lider_email text;</code>' : ''}</div>`;
+    return;
+  }
+  _grpCache = ehLider ? (data || []).filter(g => g.tipo === 'celulas' && (g.lider_email || '').trim().toLowerCase() === email) : (data || []);
+  const filtrados = _grpCache.filter(g => g.tipo === _grpSubTab);
   
   if (!filtrados.length) {
-    const msg = _grpSubTab === 'ministerios' ? 'Nenhum ministério cadastrado.' : 'Nenhuma célula cadastrada.';
+    const msg = ehLider ? (email ? `Nenhuma célula está associada ao e-mail ${email}. Peça ao administrador para conferir o campo E-mail do Líder no cadastro da célula.` : 'Não foi possível identificar o e-mail da sessão. Saia e entre novamente.') : (_grpSubTab === 'ministerios' ? 'Nenhum ministério cadastrado.' : 'Nenhuma célula cadastrada.');
     l.innerHTML = `<div class="vazio" style="padding:20px; width:100%">${msg}</div>`;
     return;
   }
@@ -3880,9 +3912,11 @@ async function gruposCarregar() {
     `;
   }).join('');
   if (window.lucide) lucide.createIcons();
+  if (ehLider && filtrados.length === 1 && _grpActive?.id !== filtrados[0].id) await gruposSelecionar(filtrados[0].id);
 }
 
 function gruposMudarAba(aba) {
+    if (ehLiderCelula()) aba = 'celulas';
     _grpSubTab = aba;
     _grpActive = null;
     const cont = document.getElementById('grupos-conteudo');
@@ -3902,6 +3936,7 @@ function gruposMudarAba(aba) {
 }
 
 async function gruposAbrirModal(id = null) {
+  if (ehLiderCelula()) { alert('O cadastro de células é reservado ao administrador.'); return; }
   await garantirDatalistGlobal(); // Garante datalist antes de montar o modal
   const g = id ? _grpCache.find(x => x.id === id) : null;
   const tipo = g ? g.tipo : _grpSubTab;
@@ -3928,6 +3963,7 @@ async function gruposAbrirModal(id = null) {
         <input type="hidden" id="g-tipo" value="celulas">
         <div class="form-group full"><label>Nome da Célula *</label><input id="g-nome" value="${g?.nome || ''}" placeholder="Ex: Célula Esperança"></div>
         <div class="form-group"><label>Líder</label><input id="g-lider" value="${g?.lider || ''}" list="lista-Membros-geral"></div>
+        <div class="form-group"><label>E-mail do Líder (login)</label><input id="g-lider-email" type="email" value="${g?.lider_email || ''}" placeholder="lider@exemplo.com"></div>
         <div class="form-group"><label>Supervisor</label><input id="g-supervisor" value="${g?.supervisor || ''}" list="lista-Membros-geral"></div>
         <div class="form-group"><label>Anfitrião</label><input id="g-anfitriao" value="${g?.anfitriao || ''}" list="lista-Membros-geral" oninput="window._grp.sincAddress()"></div>
         <div class="form-group"><label>Horário</label><input id="g-horario" value="${g?.horario || ''}" placeholder="Ex: Terça 20h"></div>
@@ -3966,6 +4002,7 @@ async function gruposAbrirModal(id = null) {
 }
 
 async function gruposSalvar() {
+  if (ehLiderCelula()) { alert('Você não tem permissão para cadastrar ou editar células.'); return; }
   const id = document.getElementById('g-id').value;
   const dados = {
     nome: document.getElementById('g-nome').value,
@@ -3977,7 +4014,8 @@ async function gruposSalvar() {
     anfitriao: document.getElementById('g-anfitriao')?.value || '',
     bairro: document.getElementById('g-bairro')?.value || '',
     rua: document.getElementById('g-rua')?.value || '',
-    horario: document.getElementById('g-horario')?.value || ''
+    horario: document.getElementById('g-horario')?.value || '',
+    lider_email: document.getElementById('g-tipo').value === 'celulas' ? (document.getElementById('g-lider-email')?.value || '').trim().toLowerCase() || null : null
   };
 
   if (!dados.nome) { alert('O nome é obrigatório.'); return; }
@@ -4012,6 +4050,8 @@ let _celSubTab = 'participantes'; // 'participantes' | 'chamada' | 'historico'
 
 async function gruposSelecionar(id) {
   const g = _grpCache.find(x => x.id === id);
+  if (!g) return;
+  if (ehLiderCelula() && (g.tipo !== 'celulas' || (g.lider_email || '').trim().toLowerCase() !== (emailUsuarioAtual || '').trim().toLowerCase())) { alert('Acesso permitido somente à célula vinculada ao seu e-mail.'); return; }
   _grpActive = g;
 
   document.querySelectorAll('.celula-btn').forEach(b => b.classList.remove('ativa'));
@@ -4033,10 +4073,7 @@ async function gruposSelecionar(id) {
             <h2 style="color:var(--primary); margin-bottom:5px">${g.nome}</h2>
             <p style="color:var(--text-muted)">Ministério IPB</p>
           </div>
-          <div style="display:flex; gap:10px">
-            <button class="btn-secondary" onclick="window._grp.abrirModal('${g.id}')">Editar</button>
-            <button class="btn-danger" onclick="window._grp.excluir('${g.id}', '${g.nome}')">Excluir</button>
-          </div>
+          ${ehLiderCelula() ? '' : `<div style="display:flex; gap:10px"><button class="btn-secondary" onclick="window._grp.abrirModal('${g.id}')">Editar</button><button class="btn-danger" onclick="window._grp.excluir('${g.id}', '${g.nome}')">Excluir</button></div>`}
         </div>
         <div class="form-grid">
           <div class="form-group" style="background:#f8fafc; padding:15px; border-radius:12px">
@@ -4085,10 +4122,7 @@ async function celulaMontarLayout(g, aba) {
           <h2 style="color:var(--primary); margin-bottom:4px">${g.nome}</h2>
           <p style="color:var(--text-muted); font-size:0.85rem">Célula de Comunhão</p>
         </div>
-        <div style="display:flex; gap:8px">
-          <button class="btn-secondary btn-sm" onclick="window._grp.abrirModal('${g.id}')">Editar</button>
-          <button class="btn-danger btn-sm" onclick="window._grp.excluir('${g.id}', '${g.nome}')">Excluir</button>
-        </div>
+        ${ehLiderCelula() ? '' : `<div style="display:flex; gap:8px"><button class="btn-secondary btn-sm" onclick="window._grp.abrirModal('${g.id}')">Editar</button><button class="btn-danger btn-sm" onclick="window._grp.excluir('${g.id}', '${g.nome}')">Excluir</button></div>`}
       </div>
 
       <!-- Info cards -->
@@ -4637,6 +4671,7 @@ async function gruposRemoverParticipante(pid, gid) {
 }
 
 async function gruposExcluir(id, nome) {
+  if (ehLiderCelula()) { alert('Você não tem permissão para excluir registros.'); return; }
   if (!confirm(`Excluir ${_grpSubTab === 'ministerios' ? 'Ministério' : 'Célula'} "${nome}"?`)) return;
   try {
     const { error } = await supabase.from('grupos').delete().eq('id', id);
