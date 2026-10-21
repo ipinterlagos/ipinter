@@ -5491,6 +5491,14 @@ window._fin = {
       }
     };
 
+    // Carrega a lista assim que a aba Usuários é aberta. Usa a função publicada
+    // em window._cfg, que informa erros de permissão/RLS em vez de ocultá-los.
+    const listaUsuarios = document.getElementById('lista-usuarios');
+    if (listaUsuarios) {
+      listaUsuarios.innerHTML = '<p class="hint">Carregando usuários...</p>';
+      window._cfg?.carregarUsuarios?.();
+    }
+
   } 
   else if (_cfgTab === 'lixeira') {
     container.innerHTML = `
